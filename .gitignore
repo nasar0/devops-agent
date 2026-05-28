@@ -25,7 +25,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# --- CONFIGURACIONES DE EDITORES (Opcional, por si usas VS Code o PyCharm) ---
+# --- CONFIGURACIONES DE EDITORES
 .vscode/
 .idea/
 *.suo
