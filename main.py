@@ -1,57 +1,54 @@
 import sys
 import json
+import os
 from config.settings import config
 from src.agent import ask_agent
 from src.chatops import send_telegram_message, request_human_approval
 from src.tools import AVAILABLE_TOOLS
 
 def procesar_peticion(user_input: str):
-    print(f"\n💬 Usuario pide: '{user_input}'")
+    # Una única línea elegante para iniciar la petición del usuario
+    print(f"\n🚀 [AGENTE] Procesando: '{user_input}'")
     
     intento_actual = 1
-    max_intentos = 3
+    max_intentos = 5 
     prompt_actual = user_input
-    
-    # Variables de rastreo de errores para el Saneamiento
     ultimo_error = None
     comando_fallido = None 
 
     while intento_actual <= max_intentos:
         if intento_actual > 1:
-            print(f"\n🔄 [AUTORREPARACIÓN] Intento {intento_actual}/{max_intentos}...")
-            # Construimos un contexto súper agresivo con el historial del error
+            # Construimos el contexto para la IA sin ensuciar la pantalla
             prompt_actual = (
                 f"[SISTEMA CRÍTICO DE AUTORREPARACIÓN - INTENTO {intento_actual}]\n"
-                f"El comando que propusiste anteriormente falló estrepitosamente en la terminal.\n\n"
+                f"El comando que propusiste anteriormente falló en la terminal.\n\n"
                 f"🎯 Petición original del usuario: '{user_input}'\n"
                 f"❌ Comando erróneo que generaste: '{comando_fallido}'\n"
                 f"💥 Error de salida de la terminal:\n{ultimo_error}\n\n"
-                f"👉 INSTRUCCIÓN DE REPARACIÓN:\n"
-                f"1. Analiza el error sintáctico o de permisos.\n"
-                f"2. Si estás en Windows, evita poner espacios corruptos (NUNCA generes cosas como '.      est').\n"
-                f"3. Si la petición requiere varios pasos secuenciales para completarse con éxito, "
-                f"puedes encadenar comandos utilizando el punto y coma ';' (en Windows) o '&&' (en Linux).\n"
-                f"4. Devuelve el JSON con el comando corregido y limpio."
+                f"👉 REGLAS CRÍTICAS DE REPARACIÓN:\n"
+                f"1. Si el error dice 'No such file or directory', significa que la ruta que estás asumiendo NO existe. "
+                f"¡PROHIBIDO volver a intentar el mismo comando o la misma ruta!\n"
+                f"2. Estrategia de exploración: Si no encuentras el archivo, ejecuta un comando compuesto para listar el directorio "
+                f"actual y ver dónde estás metido realmente (Ejemplo en Linux: 'pwd && ls -la' o 'find . -name \"*archivo*\"').\n"
+                f"3. RECUERDA: Estás corriendo DENTRO de un contenedor Docker aislado. La raíz del proyecto es el directorio actual '.'. "
+                f"Es muy probable que el archivo que buscas esté en la raíz o en una subcarpeta directa, no dentro de una carpeta repetida.\n"
+                f"4. Corrige tu enfoque, descubre la ruta real y genera el JSON con el comando corregido."
             )
 
-        print("🧠 Pensando...")
+        # Barra de estado compacta que se actualiza dinámicamente
+        print(f"  └── 🔄 [Intento {intento_actual}/{max_intentos}] Pensando...", end="\r", flush=True)
+        
         ai_decision = ask_agent(prompt_actual)
         tool_name = ai_decision.get("tool_name")
         argument = ai_decision.get("argument")
-        thought = ai_decision.get("thought")
-        
-        print(f"🤔 Pensamiento de la IA: {thought}")
         
         if not tool_name or tool_name not in AVAILABLE_TOOLS:
-            print("❌ La IA no pudo asociar tu petición con ninguna herramienta disponible.")
+            print(f"\n❌ [Error] La IA no pudo asociar tu petición con ninguna herramienta disponible.")
             return
             
-        print(f"🛠️  Herramienta seleccionada: {tool_name}")
-        
         es_peligroso = False
         comando_a_ejecutar = argument
 
-        # Desempaquetar comandos de forma segura
         if tool_name == "restart_container":
             es_peligroso = True
             comando_a_ejecutar = f"docker restart {argument}"
@@ -68,23 +65,19 @@ def procesar_peticion(user_input: str):
                 comando_a_ejecutar = argument
                 es_peligroso = True
 
-        # 💾 Guardamos el comando actual antes de ejecutarlo para el rastreador de fallos
         comando_fallido = comando_a_ejecutar
 
-        if comando_a_ejecutar:
-            print(f"💻 Comando asignado: {comando_a_ejecutar}")
+        # Traza limpia del comando que se va a intentar ejecutar
+        print(f"  └── 🛠️  [{tool_name}] -> 💻 `{comando_a_ejecutar}`" + " " * 25)
 
-        # Freno de mano interactivo
         if es_peligroso:
             aprobado = request_human_approval(comando_a_ejecutar)
             if not aprobado:
-                print("🔴 [BLOQUEADO] El administrador denegó la acción. Abortando.")
+                print("  └── 🔴 [BLOQUEADO] El administrador denegó la acción. Abortando.")
                 send_telegram_message(f"❌ Acción denegada: `{comando_a_ejecutar}`")
                 return
             send_telegram_message(f"⚡ Autorizado: `{comando_a_ejecutar}`")
 
-        # Ejecución real en caliente
-        print("🚀 Ejecutando comando en el sistema...")
         try:
             if tool_name == "herramienta_CLI":
                 result = AVAILABLE_TOOLS[tool_name](comando_a_ejecutar)
@@ -93,21 +86,22 @@ def procesar_peticion(user_input: str):
             else:
                 result = AVAILABLE_TOOLS[tool_name]()
                 
-            # Evaluar si la herramienta del sistema reportó un error real de ejecución
-            if isinstance(result, str) and result.startswith("❌ Error al ejecutar comando"):
-                print(result) 
-                ultimo_error = result  # Guardamos el reporte para el prompt del próximo intento
+            # Captura de errores de entorno para forzar el reajuste sin ensuciar la pantalla
+            if isinstance(result, str) and (result.startswith("❌ Error al ejecutar comando") or "No such file" in result or "cannot access" in result):
+                print(f"  └── ⚠️  Fallo detectado. Reajustando estrategia recursiva...")
+                ultimo_error = result  
                 intento_actual += 1
-                continue # 🔁 Reintenta saltando al principio del bucle while sin romper el flujo
+                continue 
                 
-            # Si el comando fue exitoso, rompemos el bucle y enviamos reporte
-            print(result)
+            # Imprimimos el bloque de salida bien tabulado y limpio
+            print(f"\n✅ [ÉXITO] Tarea completada con éxito:")
+            print(f"---------------------------------------------------\n{result}\n---------------------------------------------------")
             send_telegram_message(f"📊 *Resultado de la tarea* (`{tool_name}`):\n\n```\n{result}\n```")
             return
 
         except Exception as e:
+            print(f"  └── ⚠️  Fallo físico en la ejecución: {e}")
             ultimo_error = str(e)
-            print(f"❌ Falló la ejecución física: {e}")
             intento_actual += 1
 
     print(f"\n🛑 [FAIL] El agente no pudo solucionar el problema tras {max_intentos} intentos.")
