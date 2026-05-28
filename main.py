@@ -2,17 +2,22 @@ import sys
 import json
 import os
 import requests  
+import uuid 
 from config.settings import config
 from src.agent import ask_agent
 from src.chatops import send_telegram_message, request_human_approval
 from src.tools import AVAILABLE_TOOLS
 
-#  LISTA DE MEMORIA GLOBAL (Mantiene el hilo de la conversación)
+# 🧠 LISTA DE MEMORIA GLOBAL
 HISTORIAL_CONTEXTO = []
 
 def procesar_peticion(user_input: str):
     global HISTORIAL_CONTEXTO
     print(f"\n🚀 [AGENTE] Procesando: '{user_input}'")
+    
+    # GENERAMOS UN TOKEN ÚNICO PARA ESTA OPERACIÓN
+    # Esto evita que residuos de comandos pasados autoricen esta petición por error.
+    TASK_TOKEN = str(uuid.uuid4())[:8]  # Tomamos un hash corto de 8 caracteres (Ej: 'a1b2c3d4')
     
     intento_actual = 1
     max_intentos = 5 
@@ -20,7 +25,6 @@ def procesar_peticion(user_input: str):
     comando_fallido = None 
     autorizado_por_humano = False 
 
-    # Construimos el bloque de memoria formateado para la IA
     bloque_memoria = ""
     if HISTORIAL_CONTEXTO:
         bloque_memoria = "👉 CONTEXTO DE LA CONVERSACIÓN RECIENTE:\n"
@@ -28,7 +32,6 @@ def procesar_peticion(user_input: str):
             bloque_memoria += f"- {msg['rol']}: {msg['texto']}\n"
         bloque_memoria += "\n"
 
-    # El prompt inicial ahora incluye la memoria del pasado cercano
     prompt_actual = (
         f"{bloque_memoria}"
         f"🎯 Petición actual del usuario: '{user_input}'"
@@ -83,19 +86,21 @@ def procesar_peticion(user_input: str):
                 es_peligroso = True
 
         comando_fallido = comando_a_ejecutar
-        print(f"  └── 🛠️  [{tool_name}] -> 💻 `{comando_a_ejecutar}`" + " " * 25)
+        print(f"  └── 🛠️  [{tool_name}] -> 💻 `{comando_a_ejecutar}` [Token: {TASK_TOKEN}]" + " " * 10)
 
+        # 🛡️ CONTROL DE SEGURIDAD CRÍTICO MEDIANTE TOKENS ÚNICOS
         if es_peligroso:
             if autorizado_por_humano:
-                print("  └── ⚡ [AUTO-AUTORIZADO] Corrección bajo el permiso previo del SRE.")
+                print("  └── ⚡ [AUTO-AUTORIZADO] Autorregulación protegida por el permiso previo del SRE.")
             else:
-                aprobado = request_human_approval(comando_a_ejecutar)
+                # Le pasamos el TASK_TOKEN a la función de Telegram
+                aprobado = request_human_approval(comando_a_ejecutar, TASK_TOKEN)
                 if not aprobado:
-                    print("  └── 🔴 [BLOQUEADO] El administrador denegó la acción. Abortando.")
-                    send_telegram_message(f"❌ Acción denegada: `{comando_a_ejecutar}`")
+                    print("  └── 🔴 [BLOQUEADO] El administrador denegó la acción o expiró el Token. Abortando.")
+                    send_telegram_message(f"❌ Acción denegada [Token {TASK_TOKEN}]: `{comando_a_ejecutar}`")
                     return
                 autorizado_por_humano = True
-                send_telegram_message(f"⚡ Autorizado: `{comando_a_ejecutar}`")
+                send_telegram_message(f"⚡ Autorizado con éxito [Token {TASK_TOKEN}]: `{comando_a_ejecutar}`")
 
         try:
             if tool_name == "herramienta_CLI":
@@ -115,11 +120,9 @@ def procesar_peticion(user_input: str):
             print(f"---------------------------------------------------\n{result}\n---------------------------------------------------")
             send_telegram_message(f"📊 *Resultado de la tarea* (`{tool_name}`):\n\n```\n{result}\n```")
             
-            # GUARDAR EN MEMORIA TRAS EL ÉXITO: Guardamos lo que pediste y la acción realizada
             HISTORIAL_CONTEXTO.append({"rol": "Usuario", "texto": user_input})
             HISTORIAL_CONTEXTO.append({"rol": "Agente", "texto": f"Ejecuté {tool_name} con éxito para el comando `{comando_a_ejecutar}`."})
             
-            # Limitamos la memoria a los últimos 10 elementos para no engordar el prompt eternamente
             if len(HISTORIAL_CONTEXTO) > 10:
                 HISTORIAL_CONTEXTO = HISTORIAL_CONTEXTO[-5:]
             return

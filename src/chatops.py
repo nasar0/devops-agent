@@ -1,3 +1,4 @@
+
 import time
 import requests
 from config.settings import config
@@ -23,22 +24,24 @@ def send_telegram_message(text: str):
     y se queda escuchando (Polling) hasta que el usuario pulse un botón.
 """
 
-def request_human_approval(action_details: str) -> bool:
 
+def request_human_approval(action_details: str, task_token: str) -> bool:
     url_send = f"{TELEGRAM_API_URL}/sendMessage"
     
-    # Diseño de los botones interactivos (Inline Keyboard)
+    # Diseño de los botones interactivos (Inline Keyboard) usando el token unico
+    # Cada boton ahora devuelve 'yes_TOKEN' o 'no_TOKEN' como informacion de callback
     keyboard = {
         "inline_keyboard": [
             [
-                {"text": "✅ Confirmar (SÍ)", "callback_data": "yes"},
-                {"text": "❌ Cancelar (NO)", "callback_data": "no"}
+                {"text": "✅ Confirmar (SÍ)", "callback_data": f"yes_{task_token}"},
+                {"text": "❌ Cancelar (NO)", "callback_data": f"no_{task_token}"}
             ]
         ]
     }
     
     mensaje = (
         f"⚠️ *SOLICITUD DE ACCIÓN CRÍTICA*\n\n"
+        f"ID de Tarea: `{task_token}`\n"
         f"El agente DevOps quiere ejecutar:\n"
         f"`{action_details}`\n\n"
         f"¿Autorizas esta acción?"
@@ -52,13 +55,13 @@ def request_human_approval(action_details: str) -> bool:
     }
     
     try:
-        #Enviamos los botones al móvil
+        # Enviamos el mensaje con los botones dinamicos a Telegram
         response = requests.post(url_send, json=payload, timeout=10).json()
         if not response.get("ok"):
             print("❌ Error al enviar la botonera a Telegram.")
             return False
             
-        print("\n🛑 [FRENO DE MANO ACTIVADO] Esperando aprobación en Telegram...")
+        print(f"\n🛑 [FRENO DE MANO ACTIVADO] Esperando aprobación en Telegram para la tarea [{task_token}]...")
         
         # Bucle de espera (Polling continuo)
         url_updates = f"{TELEGRAM_API_URL}/getUpdates"
@@ -75,13 +78,18 @@ def request_human_approval(action_details: str) -> bool:
                 for update in updates["result"]:
                     offset = update["update_id"] + 1
                     
-                    # Comprobamos si la actualización es porque pulsaste un botón
+                    # Comprobamos si la actualizacion proviene de una pulsacion de boton
                     if "callback_query" in update:
                         callback = update["callback_query"]
                         respuesta = callback["data"]   
-                        msg_id = callback["message"]["message_id"] # Sacamos el ID del mensaje
+                        msg_id = callback["message"]["message_id"]
+                        
+                        # FILTRO DE SEGURIDAD CRÍTICO: Comprobamos si la respuesta pertenece al token actual
+                        # Si no coincide (es un residuo del pasado), el bucle ignora el evento y sigue esperando
+                        if not (respuesta == f"yes_{task_token}" or respuesta == f"no_{task_token}"):
+                            continue
 
-                        # Editar el mensaje para BORRAR los botones por completo
+                        # Una vez validado el token correspondiente, procedemos a borrar los botones
                         url_edit = f"{TELEGRAM_API_URL}/editMessageReplyMarkup"
                         payload_edit = {
                             "chat_id": config.chat_id,
@@ -90,9 +98,10 @@ def request_human_approval(action_details: str) -> bool:
                         }
                         requests.post(url_edit, json=payload_edit, timeout=5)
                         
-                        return respuesta == "yes"
+                        # Retorna True si coincide exactamente con la aprobacion de este token especifico
+                        return respuesta == f"yes_{task_token}"
                         
-            time.sleep(3) # Un respiro para no saturar la CPU
+            time.sleep(3) # Pausa controlada para evitar saturacion de la CPU
             
     except Exception as e:
         print(f"❌ Error en el flujo de aprobación: {e}")
