@@ -1,0 +1,35 @@
+# --- ENTORNOS VIRTUALES (La roña pesada) ---
+venv/
+.venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+
+# --- ARCHIVOS SECRETOS (Seguridad) ---
+.env
+*.env
+.env.*
+secrets.json
+
+# --- CACHÉ DE PYTHON (Archivos temporales compilados) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- CONFIGURACIONES DE EDITORES (Opcional, por si usas VS Code o PyCharm) ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
