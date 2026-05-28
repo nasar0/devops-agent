@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  devops-agent:
+    build: .
+    container_name: devops-agent-live
+    restart: always
+    stdin_open: true
+    tty: true
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
