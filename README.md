@@ -1,16 +1,17 @@
-# 🤖 DevOps & SRE Autonomous AI Agent
+# 🤖 Autonomous DevOps & SRE AI Agent
 
-Un agente autónomo avanzado de ingeniería de confiabilidad de sitios (SRE) y operaciones de desarrollo (DevOps). Diseñado para ejecutarse de forma híbrida en entornos **Windows (PowerShell)** y **Linux (Bash)**, interactuando nativamente con el sistema operativo bajo un estricto control de seguridad y capacidades de autorreparación en tiempo real.
+Un agente autónomo avanzado de Ingeniería de Confiabilidad de Sitios (SRE) y operaciones de desarrollo (DevOps). Diseñado para ejecutarse de forma híbrida en entornos **Windows (PowerShell)** y **Linux (Bash)**, interactuando nativamente con el sistema operativo bajo un estricto control de seguridad criptográfica por sesión, memoria contextual avanzada y capacidades de autorreparación (Self-Healing) en tiempo real.
 
 ---
 
 ## 🚀 Características Principales
 
-*   **🧠 Cerebro Híbrido Dinámico:** Capaz de conmutar entre la nube de alto rendimiento con **Groq Cloud (Llama 3.3)** y ejecución local 100% privada mediante **Ollama (Llama 3)**.
-*   **💻 Abstracción Automática del Entorno:** Autodetecta el sistema operativo anfitrión. Adapta la sintaxis de los comandos en tiempo real evitando conflictos entre operadores (como la conversión automática de `&&` a `;` en entornos Windows PowerShell antiguos).
-*   **🛑 Freno de Mano por Telegram (Human-in-the-Loop):** Clasifica de forma autónoma el nivel de riesgo de cada comando. Si detecta acciones de escritura o modificación (`mkdir`, `rm`, `docker restart`), congela el hilo de ejecución y solicita aprobación interactiva al administrador vía Telegram.
-*   **🔄 Bucle de Autorreparación (Self-Healing):** Si un comando CLI falla en la terminal, el agente captura el código de salida y el mensaje de error nativo, reformula el contexto y realiza hasta **3 intentos de depuración autónoma** para corregir la sintaxis.
-*   **📟 Consola Interactiva REPL:** Interfaz continua por consola que mantiene al agente en escucha activa sin interrupción del servicio ante fallos del sistema o excepciones de codificación de caracteres.
+* **🧠 Cerebro Híbrido Avanzado:** Capaz de conmutar entre la nube de alto rendimiento con **Groq Cloud (Llama 3.3)** y ejecución local 100% privada mediante **Ollama (Llama 3)** de forma transparente.
+* **👁️ Memoria Contextual de Sesión:** Mantiene un historial cíclico vivo de las últimas 10 interacciones de la conversación. Esto permite al agente comprender pronombres, responder a órdenes de seguimiento (ej. *"Modifica su contenido"*) y mantener el hilo sin amnesia entre comandos.
+* **💻 Abstracción Automática del Entorno:** Autodetecta el sistema operativo anfitrión (`Windows` o `Linux`). Adapta la sintaxis de los comandos en tiempo real evitando conflictos entre operadores (como el formateo estricto de rutas o la conversión de comandos encadenados `&&` a `;` en entornos Windows).
+* **🛡️ Freno de Mano Blindado con Tokens Únicos:** Clasifica de forma autónoma el riesgo de cada comando. Si detecta acciones de escritura o modificación, congela el hilo y solicita aprobación vía Telegram. Utiliza un sistema de **Tokens Aleatorios Dinámicos (UUID)** por sesión, garantizando que el bot ignore respuestas residuales o pulsaciones huérfanas del pasado.
+* **🔄 Bucle de Autorreparación Extendido (5 Intentos):** Si un comando CLI falla en la terminal, el agente captura de forma silenciosa el `stderr` y el código de salida nativo, reformula la estrategia recursivamente y realiza hasta **5 intentos de depuración autónoma** (explorando directorios con `pwd` o `ls` si es necesario) antes de reportar un fallo.
+* **📟 Consola Interactiva REPL Optimizada:** Interfaz continua por consola configurada sin buffer de salida de Python (`PYTHONUNBUFFERED=1`), asegurando un prompt reactivo e instantáneo al interactuar de forma nativa o mediante contenedores Docker.
 
 ---
 
@@ -20,11 +21,11 @@ El agente mapea el lenguaje natural del usuario y lo transforma en llamadas a fu
 
 | Herramienta | Tipo de Acción | Descripción |
 | :--- | :--- | :--- |
-| `check_disk_space` | Lectura / Diagnóstico | Monitoreo del espacio en discos del sistema. |
-| `check_cpu_memory` | Lectura / Diagnóstico | Muestreo de consumos de RAM y CPU de forma nativa. |
-| `list_docker_containers` | Lectura / Diagnóstico | Listado de contenedores e infraestructura Docker actual. |
-| `restart_container` | Escritura (**Crítica**) | Reinicio controlado de microservicios y contenedores. |
-| `herramienta_CLI` | Dinámica (**Evaluada**) | Intérprete genérico para cualquier comando del sistema operativo. |
+| `check_disk_space` | Lectura / Diagnóstico | Monitoreo multiplataforma del espacio en discos del sistema. |
+| `check_cpu_memory` | Lectura / Diagnóstico | Muestreo de consumos de memoria RAM y CPU en tiempo real. |
+| `list_docker_containers` | Lectura / Diagnóstico | Listado y mapeo de infraestructura y contenedores Docker activos. |
+| `restart_container` | Escritura (**Crítica**) | Reinicio controlado de microservicios por nombre de contenedor. |
+| `herramienta_CLI` | Dinámica (**Evaluada**) | Intérprete genérico para cualquier comando nativo del sistema operativo. |
 
 ---
 
@@ -32,62 +33,63 @@ El agente mapea el lenguaje natural del usuario y lo transforma en llamadas a fu
 
 ### 1. Clonar el repositorio y acceder
 ```bash
-cd "C:\Users\Administrador\Desktop\Arminet\pagina web\Nueva Carpeta\devops-agent"
+git clone [https://github.com/tu-usuario/devops-agent.git](https://github.com/tu-usuario/devops-agent.git)
+cd devops-agent
 
 ```
 
-### 2. Configurar el Entorno Virtual (Venv)
+### 2. Configurar el Entorno Virtual (Venv) e Instalar Dependencias
 
-```powershell
-# En Windows (PowerShell)
+```bash
+# Crear entorno virtual
+python -m venv venv
+
+# Activar en Windows (PowerShell)
 .\venv\Scripts\activate
+
+# Activar en Linux (Bash)
+source venv/bin/activate
+
+# Instalar requerimientos estructurados
+pip install -r requirements.txt
 
 ```
 
 ### 3. Configuración de Variables de Entorno (`.env`)
 
-Crea un archivo `.env` en la raíz del proyecto con la siguiente estructura:
+Crea un archivo `.env` en la raíz del proyecto basándote en el archivo `env.example`:
 
 ```env
-IA_MODE=CLOUD or LOCAL
-GROQ_KEY=YOUR_API_KEY_OF_GROQ
-TELEGRAM_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
-CHAT_ID=YOUR_TELEGRAM_CHAT_ID
+IA_MODE=CLOUD        # CLOUD o LOCAL
+GROQ_KEY=gsk_...     # Tu API Key de Groq Cloud
+TELEGRAM_TOKEN=...   # Token oficial de tu Bot de Telegram
+CHAT_ID=...          # ID del chat con tu Administrador SRE
+
 ```
 
 ---
 
-## 🕹️ Modo de Uso
+## 🕹️ Modo de Uso y Despliegue
 
-Para lanzar la consola interactiva infinita del agente SRE, ejecuta:
+### Ejecución Nativa
 
-```powershell
+Para lanzar la consola interactiva infinita del agente SRE en tu máquina local o servidor:
+
+```bash
 python main.py
 
 ```
 
-### Ejemplo de flujo interactivo en la terminal:
+### Ejecución Aislada con Docker (Recomendado)
 
-```text
-========== 🤖 AGENTE DEVOPS SRE INICIALIZADO ==========
-🌍 Modo actual: NUBE (Groq)
-📌 Escribe 'salir' o presiona Ctrl+C para cerrar el agente.
-=======================================================
+El proyecto incluye soporte para desplegarse dentro de un contenedor Docker manteniendo la entrada estándar interactiva sincronizada y en tiempo real:
 
-DevOps-Console> en devops-agent crea una carpeta test con un txt dentro que diga Make by AI
+```bash
+# Construir y levantar el agente en segundo plano
+docker compose up -d --build
 
-💬 Usuario pide: '...'
-🧠 Pensando...
-🤔 Pensamiento de la IA: Se requiere una acción de escritura en el sistema de archivos. Uso herramienta_CLI.
-🛠️ Herramienta seleccionada: herramienta_CLI
-💻 Comando asignado: New-Item -ItemType Directory -Name 'test'; Set-Content -Path 'test/test.txt' -Value 'Make by AI'
-
-🛑 [FRENO DE MANO ACTIVADO] Esperando aprobación en Telegram...
-🟢 [AUTORIZADO] Permitido desde Telegram. Procediendo a la ejecución...
-🚀 Ejecutando comando en el sistema...
-
-Comando ejecutado con éxito.
--------------------------------------------------------
+# Conectarse a la consola interactiva instantánea del agente sin congelamientos de buffer
+docker exec -it devops-agent-live python main.py
 
 ```
 
@@ -99,31 +101,29 @@ Comando ejecutado con éxito.
 devops-agent/
 │
 ├── config/
-│   └── settings.py          # Gestión y validación de variables de entorno (.env)
+│   └── settings.py          # Gestión, tipado estricto y validación Pydantic del .env
 │
 ├── src/
-│   ├── agent.py             # Generación y blindaje del System Prompt modular
-│   ├── chatops.py           # Pasarela de Webhooks y aprobaciones con la API de Telegram
-│   └── tools/               # Módulos de herramientas nativas del agente
-│       ├── __init__.py      # Orquestador y mapeo de funciones disponibles
-│       ├── system_tools.py  # Scripts de recolección de métricas de hardware
-│       ├── docker_tools.py  # Orquestación de infraestructura de contenedores
-│       └── global_tools.py  # Wrapper tolerante a encoding (cp1252/utf-8) para CLI
+│   ├── agent.py             # Generación del System Prompt modular y conectores de IA
+│   ├── chatops.py           # Pasarela de Webhooks, polling y validación de tokens únicos con Telegram
+│   └── tools/               # Módulos de aislamiento de herramientas del agente
+│       ├── __init__.py      # Orquestador principal y mapeo de llamadas autorizadas
+│       ├── system_tools.py  # Scripts de recolección de métricas de hardware del Host
+│       ├── docker_tools.py  # Control de infraestructura y estado de contenedores
+│       └── global_tools.py  # Wrapper tolerante a encodings de sistema (cp1252/utf-8) para CLI
 │
-└── main.py                  # Loop REPL principal y lógica del pipeline de autorreparación
+├── env.example              # Plantilla de referencia para variables de entorno
+├── Dockerfile               # Configuración de empaquetado optimizado sin buffers de terminal
+├── docker-compose.yml       # Orquestador del contenedor con montajes de sockets de Docker
+└── main.py                  # Loop REPL principal, gestor de memoria e hilo de autorreparación
 
 ```
 
-# DISCLAIMER
-##########################################################
+---
 
-¡Hola! Soy un desarrollador de software y he creado este agente con fines puramente educativos y de investigación. 
-No me hago responsable del mal uso que se le pueda dar a este programa. 
-Recuerda que un uso indebido de este agente podría causar daños graves a tu sistema.
+## ⚠️ Aviso Legal (Disclaimer)
 
-El uso de este software corre bajo tu entera responsabilidad.
+Este software ha sido desarrollado exclusivamente con fines educativos, de investigación y de automatización controlada de operaciones de desarrollo.
 
-SOLO ESTA CREADO PARA API EN LA NUBE CON GROQ NO ESTA TESTEADO EN LOCAL NI EN LINUX 
-NI EN NINGUN OTRO ENTORNO QUE NO SEA WINDOWS CON GROQ
-
-##########################################################
+* **Responsabilidad:** El autor no se hace responsable de daños, alteraciones de datos, borrados accidentales o interrupciones de servicio causadas por los comandos ejecutados o sugeridos de forma autónoma por la Inteligencia Artificial.
+* **Entorno Seguro:** Se recomienda encarecidamente ejecutar este agente dentro de entornos controlados (Staging), máquinas virtuales o contenedores Docker aislados que tengan los permisos estrictamente limitados en el sistema anfitrión.
