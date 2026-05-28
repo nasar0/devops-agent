@@ -1,25 +1,43 @@
 import sys
 import json
 import os
-import requests  # 👈 Añadido para interactuar de forma limpia si hace falta resetear
+import requests  
 from config.settings import config
 from src.agent import ask_agent
 from src.chatops import send_telegram_message, request_human_approval
 from src.tools import AVAILABLE_TOOLS
 
+#  LISTA DE MEMORIA GLOBAL (Mantiene el hilo de la conversación)
+HISTORIAL_CONTEXTO = []
+
 def procesar_peticion(user_input: str):
+    global HISTORIAL_CONTEXTO
     print(f"\n🚀 [AGENTE] Procesando: '{user_input}'")
     
     intento_actual = 1
     max_intentos = 5 
-    prompt_actual = user_input
     ultimo_error = None
     comando_fallido = None 
     autorizado_por_humano = False 
 
+    # Construimos el bloque de memoria formateado para la IA
+    bloque_memoria = ""
+    if HISTORIAL_CONTEXTO:
+        bloque_memoria = "👉 CONTEXTO DE LA CONVERSACIÓN RECIENTE:\n"
+        for msg in HISTORIAL_CONTEXTO:
+            bloque_memoria += f"- {msg['rol']}: {msg['texto']}\n"
+        bloque_memoria += "\n"
+
+    # El prompt inicial ahora incluye la memoria del pasado cercano
+    prompt_actual = (
+        f"{bloque_memoria}"
+        f"🎯 Petición actual del usuario: '{user_input}'"
+    )
+
     while intento_actual <= max_intentos:
         if intento_actual > 1:
             prompt_actual = (
+                f"{bloque_memoria}"
                 f"[SISTEMA CRÍTICO DE AUTORREPARACIÓN - INTENTO {intento_actual}]\n"
                 f"El comando que propusiste anteriormente falló en la terminal.\n\n"
                 f"🎯 Petición original del usuario: '{user_input}'\n"
@@ -67,9 +85,7 @@ def procesar_peticion(user_input: str):
         comando_fallido = comando_a_ejecutar
         print(f"  └── 🛠️  [{tool_name}] -> 💻 `{comando_a_ejecutar}`" + " " * 25)
 
-        # 🛡️ CONTROL DE SEGURIDAD REFORZADO ANTI-RESIDUOS
         if es_peligroso:
-            # Si ya fue autorizado por el humano en el intento 1, no volvemos a preguntar por Telegram
             if autorizado_por_humano:
                 print("  └── ⚡ [AUTO-AUTORIZADO] Corrección bajo el permiso previo del SRE.")
             else:
@@ -78,7 +94,6 @@ def procesar_peticion(user_input: str):
                     print("  └── 🔴 [BLOQUEADO] El administrador denegó la acción. Abortando.")
                     send_telegram_message(f"❌ Acción denegada: `{comando_a_ejecutar}`")
                     return
-                # Si pasa el filtro, marcamos que el humano explícitamente dijo SÍ en esta sesión caliente
                 autorizado_por_humano = True
                 send_telegram_message(f"⚡ Autorizado: `{comando_a_ejecutar}`")
 
@@ -99,6 +114,14 @@ def procesar_peticion(user_input: str):
             print(f"\n✅ [ÉXITO] Tarea completada con éxito:")
             print(f"---------------------------------------------------\n{result}\n---------------------------------------------------")
             send_telegram_message(f"📊 *Resultado de la tarea* (`{tool_name}`):\n\n```\n{result}\n```")
+            
+            # GUARDAR EN MEMORIA TRAS EL ÉXITO: Guardamos lo que pediste y la acción realizada
+            HISTORIAL_CONTEXTO.append({"rol": "Usuario", "texto": user_input})
+            HISTORIAL_CONTEXTO.append({"rol": "Agente", "texto": f"Ejecuté {tool_name} con éxito para el comando `{comando_a_ejecutar}`."})
+            
+            # Limitamos la memoria a los últimos 10 elementos para no engordar el prompt eternamente
+            if len(HISTORIAL_CONTEXTO) > 10:
+                HISTORIAL_CONTEXTO = HISTORIAL_CONTEXTO[-5:]
             return
 
         except Exception as e:
@@ -118,13 +141,10 @@ def resetear_telegram():
             return
             
         url_get = f"https://api.telegram.org/bot{token}/getUpdates"
-        # 1. Leemos los últimos mensajes de la cola
         res = requests.get(url_get, timeout=5).json()
         
         if res.get("ok") and res.get("result"):
-            # Obtenemos el ID del último mensaje enviado por ti en el pasado
             ultimo_update_id = res["result"][-1]["update_id"]
-            # 2. Le decimos a Telegram que marque como 'leídos' todos hasta el último + 1
             requests.get(f"{url_get}?offset={ultimo_update_id + 1}", timeout=5)
             print("🧹 [TELEGRAM] Cola de mensajes e historial antiguo purgado con éxito.")
     except Exception as e:
@@ -136,9 +156,7 @@ def main():
     print(f"🌍 Modo actual: {'NUBE (Groq)' if config.is_cloud else 'LOCAL (Ollama)'}")
     print("🎈 Escribe 'salir' o presiona Ctrl+C para cerrar el agente.")
     
-    # Vaciamos los buffers acumulados antes de pintar la primera línea de consola
     resetear_telegram()
-    
     print("=======================================================\n")
     
     while True:
