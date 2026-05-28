@@ -1,13 +1,13 @@
 import sys
 import json
 import os
+import requests  # 👈 Añadido para interactuar de forma limpia si hace falta resetear
 from config.settings import config
 from src.agent import ask_agent
 from src.chatops import send_telegram_message, request_human_approval
 from src.tools import AVAILABLE_TOOLS
 
 def procesar_peticion(user_input: str):
-    # Una única línea elegante para iniciar la petición del usuario
     print(f"\n🚀 [AGENTE] Procesando: '{user_input}'")
     
     intento_actual = 1
@@ -15,10 +15,10 @@ def procesar_peticion(user_input: str):
     prompt_actual = user_input
     ultimo_error = None
     comando_fallido = None 
+    autorizado_por_humano = False 
 
     while intento_actual <= max_intentos:
         if intento_actual > 1:
-            # Construimos el contexto para la IA sin ensuciar la pantalla
             prompt_actual = (
                 f"[SISTEMA CRÍTICO DE AUTORREPARACIÓN - INTENTO {intento_actual}]\n"
                 f"El comando que propusiste anteriormente falló en la terminal.\n\n"
@@ -35,7 +35,6 @@ def procesar_peticion(user_input: str):
                 f"4. Corrige tu enfoque, descubre la ruta real y genera el JSON con el comando corregido."
             )
 
-        # Barra de estado compacta que se actualiza dinámicamente
         print(f"  └── 🔄 [Intento {intento_actual}/{max_intentos}] Pensando...", end="\r", flush=True)
         
         ai_decision = ask_agent(prompt_actual)
@@ -66,17 +65,22 @@ def procesar_peticion(user_input: str):
                 es_peligroso = True
 
         comando_fallido = comando_a_ejecutar
-
-        # Traza limpia del comando que se va a intentar ejecutar
         print(f"  └── 🛠️  [{tool_name}] -> 💻 `{comando_a_ejecutar}`" + " " * 25)
 
+        # 🛡️ CONTROL DE SEGURIDAD REFORZADO ANTI-RESIDUOS
         if es_peligroso:
-            aprobado = request_human_approval(comando_a_ejecutar)
-            if not aprobado:
-                print("  └── 🔴 [BLOQUEADO] El administrador denegó la acción. Abortando.")
-                send_telegram_message(f"❌ Acción denegada: `{comando_a_ejecutar}`")
-                return
-            send_telegram_message(f"⚡ Autorizado: `{comando_a_ejecutar}`")
+            # Si ya fue autorizado por el humano en el intento 1, no volvemos a preguntar por Telegram
+            if autorizado_por_humano:
+                print("  └── ⚡ [AUTO-AUTORIZADO] Corrección bajo el permiso previo del SRE.")
+            else:
+                aprobado = request_human_approval(comando_a_ejecutar)
+                if not aprobado:
+                    print("  └── 🔴 [BLOQUEADO] El administrador denegó la acción. Abortando.")
+                    send_telegram_message(f"❌ Acción denegada: `{comando_a_ejecutar}`")
+                    return
+                # Si pasa el filtro, marcamos que el humano explícitamente dijo SÍ en esta sesión caliente
+                autorizado_por_humano = True
+                send_telegram_message(f"⚡ Autorizado: `{comando_a_ejecutar}`")
 
         try:
             if tool_name == "herramienta_CLI":
@@ -86,14 +90,12 @@ def procesar_peticion(user_input: str):
             else:
                 result = AVAILABLE_TOOLS[tool_name]()
                 
-            # Captura de errores de entorno para forzar el reajuste sin ensuciar la pantalla
             if isinstance(result, str) and (result.startswith("❌ Error al ejecutar comando") or "No such file" in result or "cannot access" in result):
                 print(f"  └── ⚠️  Fallo detectado. Reajustando estrategia recursiva...")
                 ultimo_error = result  
                 intento_actual += 1
                 continue 
                 
-            # Imprimimos el bloque de salida bien tabulado y limpio
             print(f"\n✅ [ÉXITO] Tarea completada con éxito:")
             print(f"---------------------------------------------------\n{result}\n---------------------------------------------------")
             send_telegram_message(f"📊 *Resultado de la tarea* (`{tool_name}`):\n\n```\n{result}\n```")
@@ -107,10 +109,36 @@ def procesar_peticion(user_input: str):
     print(f"\n🛑 [FAIL] El agente no pudo solucionar el problema tras {max_intentos} intentos.")
     send_telegram_message(f"🚨 *Agente DevOps Falló*: No se pudo completar la tarea tras {max_intentos} intentos de autorreparación.")
 
+
+def resetear_telegram():
+    """Consume y purga todos los mensajes viejos pendientes en Telegram para iniciar limpios."""
+    try:
+        token = getattr(config, 'TELEGRAM_BOT_TOKEN', None) or os.getenv('TELEGRAM_BOT_TOKEN')
+        if not token:
+            return
+            
+        url_get = f"https://api.telegram.org/bot{token}/getUpdates"
+        # 1. Leemos los últimos mensajes de la cola
+        res = requests.get(url_get, timeout=5).json()
+        
+        if res.get("ok") and res.get("result"):
+            # Obtenemos el ID del último mensaje enviado por ti en el pasado
+            ultimo_update_id = res["result"][-1]["update_id"]
+            # 2. Le decimos a Telegram que marque como 'leídos' todos hasta el último + 1
+            requests.get(f"{url_get}?offset={ultimo_update_id + 1}", timeout=5)
+            print("🧹 [TELEGRAM] Cola de mensajes e historial antiguo purgado con éxito.")
+    except Exception as e:
+        print(f"⚠️  No se pudo purgar la cola de Telegram (Modo offline o error de red): {e}")
+
+
 def main():
     print("========== AGENTE DEVOPS SRE INICIALIZADO ==========")
     print(f"🌍 Modo actual: {'NUBE (Groq)' if config.is_cloud else 'LOCAL (Ollama)'}")
     print("🎈 Escribe 'salir' o presiona Ctrl+C para cerrar el agente.")
+    
+    # Vaciamos los buffers acumulados antes de pintar la primera línea de consola
+    resetear_telegram()
+    
     print("=======================================================\n")
     
     while True:
