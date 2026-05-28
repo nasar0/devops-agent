@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 5. Copiamos el resto del código del proyecto al contenedor
 COPY . .
+ENV PYTHONUNBUFFERED=1
 
 # 6. Comando por defecto al arrancar el contenedor
 # Usamos -u para que los prints en consola salgan en tiempo real sin retrasos
