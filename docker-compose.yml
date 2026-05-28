@@ -4,6 +4,8 @@ services:
   devops-agent:
     build: .
     container_name: devops-agent-live
+    stdin_open: true
+    tty: true
     restart: always
     stdin_open: true
     tty: true
