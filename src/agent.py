@@ -61,7 +61,7 @@ def ask_agent(user_prompt: str) -> dict:
 
     # --- Bloque de conexiones e infraestructura de APIs ---
     if config.is_cloud:
-        url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
+        url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {config.groq_key}",
             "Content-Type": "application/json"
