@@ -7,7 +7,8 @@ import time
 from config.settings import config
 from src.agent import ask_agent
 from src.chatops import send_telegram_message, request_human_approval
-from src.tools import AVAILABLE_TOOLS
+# Importamos directamente la herramienta CLI pura de tu archivo global_tools
+from src.tools.global_tools import herramienta_CLI
 
 # LISTA DE MEMORIA GLOBAL
 HISTORIAL_CONTEXTO = []
@@ -17,8 +18,7 @@ def procesar_peticion(user_input: str):
     print(f"\n[INFO] [AGENTE] Procesando: '{user_input}'")
     
     # GENERAMOS UN TOKEN ÚNICO PARA ESTA OPERACIÓN
-    # Esto evita que residuos de comandos pasados autoricen esta petición por error.
-    TASK_TOKEN = str(uuid.uuid4())[:8]  # Tomamos un hash corto de 8 caracteres (Ej: 'a1b2c3d4')
+    TASK_TOKEN = str(uuid.uuid4())[:8]  
     
     intento_actual = 1
     max_intentos = 5 
@@ -48,13 +48,12 @@ def procesar_peticion(user_input: str):
                 f"[ERROR] Comando erróneo que generaste: '{comando_fallido}'\n"
                 f"[FALLO] Error de salida de la terminal:\n{ultimo_error}\n\n"
                 f"[REGLAS] REGLAS CRÍTICAS DE REPARACIÓN:\n"
-                f"1. Si el error dice 'No such file or directory', significa que la ruta que estás asumiendo NO existe. "
-                f"¡PROHIBIDO volver a intentar el mismo comando o la misma ruta!\n"
-                f"2. Estrategia de exploración: Si no encuentras el archivo, ejecuta un comando compuesto para listar el directorio "
-                f"actual y ver dónde estás metido realmente (Ejemplo en Linux: 'pwd && ls -la' o 'find . -name \"*archivo*\"').\n"
-                f"3. RECUERDA: Estás corriendo DENTRO de un contenedor Docker aislado. La raíz del proyecto es el directorio actual '.'. "
-                f"Es muy probable que el archivo que buscas esté en la raíz o en una subcarpeta directa, no dentro de una carpeta repetida.\n"
-                f"4. Corrige tu enfoque, descubre la ruta real y genera el JSON con el comando corregido."
+                f"1. Si el error dice 'No such file or directory', la ruta asumida NO existe. "
+                f"¡PROHIBIDO intentar el mismo comando o ruta!\n"
+                f"2. Estrategia de exploración: Ejecuta un comando compuesto para listar el directorio "
+                f"actual y verificar tu ubicación (Ej: 'pwd && ls -la').\n"
+                f"3. RECUERDA: Corres DENTRO de un contenedor Docker con volumen físico real mapeado.\n"
+                f"4. Corrige tu enfoque y genera el JSON con el comando CLI corregido."
             )
 
         print(f"  └── [PROCESANDO] [Intento {intento_actual}/{max_intentos}] Pensando...", end="\r", flush=True)
@@ -63,17 +62,18 @@ def procesar_peticion(user_input: str):
         tool_name = ai_decision.get("tool_name")
         argument = ai_decision.get("argument")
         
-        if not tool_name or tool_name not in AVAILABLE_TOOLS:
-            print(f"\n[ERROR] La IA no pudo asociar tu petición con ninguna herramienta disponible.")
+        if not tool_name:
+            print(f"\n[ERROR] La IA devolvió una estructura sin un nombre de herramienta válido.")
             return
             
         es_peligroso = False
         comando_a_ejecutar = argument
 
+        # Todo lo procesamos como herramienta_CLI o comandos crudos mapeados a CLI
         if tool_name == "restart_container":
             es_peligroso = True
             comando_a_ejecutar = f"docker restart {argument}"
-        elif tool_name == "herramienta_CLI":
+        else:
             try:
                 datos_cli = json.loads(argument) if isinstance(argument, str) and argument.strip().startswith("{") else argument
                 if isinstance(datos_cli, dict):
@@ -87,14 +87,13 @@ def procesar_peticion(user_input: str):
                 es_peligroso = True
 
         comando_fallido = comando_a_ejecutar
-        print(f"  └── [EJECUCIÓN] [{tool_name}] -> [CLI] `{comando_a_ejecutar}` [Token: {TASK_TOKEN}]" + " " * 10)
+        print(f"  └── [EJECUCIÓN] [herramienta_CLI] -> `{comando_a_ejecutar}` [Token: {TASK_TOKEN}]" + " " * 10)
 
         # CONTROL DE SEGURIDAD CRÍTICO MEDIANTE TOKENS ÚNICOS
         if es_peligroso:
             if autorizado_por_humano:
                 print("  └── [OK] [AUTO-AUTORIZADO] Autorregulación protegida por el permiso previo del SRE.")
             else:
-                # Le pasamos el TASK_TOKEN a la función de Telegram
                 aprobado = request_human_approval(comando_a_ejecutar, TASK_TOKEN)
                 if not aprobado:
                     print("  └── [BLOQUEADO] El administrador denegó la acción o expiró el Token. Abortando.")
@@ -104,12 +103,8 @@ def procesar_peticion(user_input: str):
                 send_telegram_message(f"[OK] Autorizado con éxito [Token {TASK_TOKEN}]: `{comando_a_ejecutar}`")
 
         try:
-            if tool_name == "herramienta_CLI":
-                result = AVAILABLE_TOOLS[tool_name](comando_a_ejecutar)
-            elif argument and tool_name == "restart_container":
-                result = AVAILABLE_TOOLS[tool_name](argument)
-            else:
-                result = AVAILABLE_TOOLS[tool_name]()
+            # Llamada única, directa y sin intermediarios a tu script global_tools
+            result = herramienta_CLI(comando_a_ejecutar)
                 
             if isinstance(result, str) and (result.startswith("❌ Error al ejecutar comando") or "No such file" in result or "cannot access" in result):
                 print(f"  └── [WARN] Fallo detectado. Reajustando estrategia recursiva...")
@@ -119,10 +114,10 @@ def procesar_peticion(user_input: str):
                 
             print(f"\n[OK] [ÉXITO] Tarea completada con éxito:")
             print(f"---------------------------------------------------\n{result}\n---------------------------------------------------")
-            send_telegram_message(f"[INFO] *Resultado de la tarea* (`{tool_name}`):\n\n```\n{result}\n```")
+            send_telegram_message(f"[INFO] *Resultado de la tarea*:\n\n```\n{result}\n```")
             
             HISTORIAL_CONTEXTO.append({"rol": "Usuario", "texto": user_input})
-            HISTORIAL_CONTEXTO.append({"rol": "Agente", "texto": f"Ejecuté {tool_name} con éxito para el comando `{comando_a_ejecutar}`."})
+            HISTORIAL_CONTEXTO.append({"rol": "Agente", "texto": f"Ejecuté el comando CLI con éxito: `{comando_a_ejecutar}`."})
             
             if len(HISTORIAL_CONTEXTO) > 10:
                 HISTORIAL_CONTEXTO = HISTORIAL_CONTEXTO[-5:]
@@ -138,9 +133,15 @@ def procesar_peticion(user_input: str):
 
 
 def obtener_telegram_config():
-    """Retorna el token y chat_id buscando variaciones en variables de entorno."""
+    """Retorna el token y chat_id buscando variaciones en variables de entorno, limpiando impurezas."""
     token = os.getenv('TELEGRAM_BOT_TOKEN') or os.getenv('TELEGRAM_TOKEN') or getattr(config, 'telegram_token', None)
     chat_id = os.getenv('TELEGRAM_CHAT_ID') or os.getenv('CHAT_ID') or getattr(config, 'chat_id', None)
+    
+    if token:
+        token = str(token).strip().replace('"', '').replace("'", "")
+    if chat_id:
+        chat_id = str(chat_id).strip().replace('"', '').replace("'", "")
+        
     return token, chat_id
 
 
