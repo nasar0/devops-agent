@@ -1,27 +1,27 @@
-# 1. Usamos una versión de Python limpia, ligera y altamente compatible
+# 1. Imagen base ligera y compatible
 FROM python:3.11-slim
 
-# Evita la creación de archivos temporales .pyc y fuerza salida directa a consola
+# Evita archivos temporales y asegura logs en tiempo real
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# 2. Definimos el directorio de ejecución dentro del contenedor
+# 2. Directorio de trabajo
 WORKDIR /opt/devops-agent
 
-# 3. Instalamos curl y el cliente binario de Docker para poder mandar comandos a la máquina real
+# 3. Instalamos curl y dependencias esenciales del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && curl -fsSL https://get.docker.com | sh \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Copiamos el archivo de requerimientos para instalar las dependencias de forma eficiente
-COPY requirements.txt .
+# 4. Descargamos SOLO el cliente de Docker (sin servicios ni motores conflictivos)
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.7.tgz | tar -xz -C /usr/local/bin --strip-components=1 docker/docker
 
-# 5. Instalamos todas las librerías de Python sin usar caché para ahorrar espacio
+# 5. Copiamos e instalamos los requerimientos de Python
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. Movemos absolutamente todo tu código, carpetas y configuraciones dentro de la imagen
+# 6. Copiamos el código de la aplicación
 COPY . .
 
-# 7. Ejecución inmediata del bot al encender el contenedor
+# 7. Ejecución por defecto
 CMD ["python", "-u", "main.py"]
