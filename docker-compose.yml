@@ -11,3 +11,8 @@ services:
       - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - IA_MODE=${IA_MODE}
+      - GROQ_KEY=${GROQ_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Agente SRE DevOps Autónomo con ChatOps
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/devops-agent
+# Dejas las variables vacías o con un texto de ejemplo
+Environment=TELEGRAM_BOT_TOKEN=TU_TELEGRAM_BOT_TOKEN_AQUI
+Environment=TELEGRAM_CHAT_ID=TU_TELEGRAM_CHAT_ID_AQUI
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
