@@ -151,7 +151,7 @@ def resetear_telegram():
         if not token:
             return
             
-        url_get = f"[https://api.telegram.org/bot](https://api.telegram.org/bot){token}/getUpdates"
+        url_get = f"[https://api.telegram.org/bot](https://api.telegram.org/bot{token}/getUpdates"
         res = requests.get(url_get, timeout=5).json()
         
         if res.get("ok") and res.get("result"):
