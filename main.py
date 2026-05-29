@@ -169,7 +169,7 @@ def iniciar_servicio_chatops():
         print("[CRÍTICO] No se encontró el TELEGRAM_TOKEN en la configuración o entorno.")
         return
 
-    url_updates = f"https://api.telegram.org/bot/{token}/getUpdates"
+    url_updates = f"https://api.telegram.org/bot{token}/getUpdates"
     offset = None
     
     print("[INFO] SERVICIO CHATOPS EN SEGUNDO PLANO ACTIVO")
