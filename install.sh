@@ -44,10 +44,14 @@ python3 -m venv "$APP_DIR/venv"
 echo "[INFO] Actualizando herramientas esenciales de pip..."
 "$APP_DIR/venv/bin/pip" install --upgrade pip setuptools wheel
 
-echo "[INFO] Instalando dependencias de Python (con soporte para Python 3.13+)..."
-# Forzamos la compatibilidad hacia delante de la ABI de Rust (PyO3) para evitar el fallo de pydantic-core
-export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-"$APP_DIR/venv/bin/pip" install --no-cache-dir -r "$APP_DIR/requirements.txt"
+echo "[INFO] Instalando dependencias de Python (Nativas para Python 3.13)..."
+# Forzamos que intente buscar ruedas precompiladas para evitar compilar con Rust
+"$APP_DIR/venv/bin/pip" install --no-cache-dir -r "$APP_DIR/requirements.txt" || {
+  echo "⚠️  Hubo un problema con los paquetes rígidos. Intentando instalar versiones precompiladas compatibles..."
+  # Si falla por versiones fijas viejas, este comando fuerza a instalar la versión más nueva ya compilada en los servidores de pip
+  "$APP_DIR/venv/bin/pip" install --no-cache-dir --upgrade pydantic pydantic-core
+  "$APP_DIR/venv/bin/pip" install --no-cache-dir -r "$APP_DIR/requirements.txt"
+}
 
 # 5. Generar dinámicamente el archivo del servicio de Systemd
 SERVICE_FILE="/etc/systemd/system/devops-agent.service"
