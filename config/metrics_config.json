@@ -1,0 +1,25 @@
+{
+  "check_interval_seconds": 60,
+  "metrics": {
+    "disk_usage": {
+      "enabled": true,
+      "type": "threshold",
+      "command": "df /home --output=pcent | tail -n 1 | tr -d ' %'",
+      "threshold": 95,
+      "alert_message": "[ALERTA] ¡Alerta SRE! El uso de disco en /home ha superado el {threshold}% (Actual: {value}%)"
+    },
+    "docker_containers": {
+      "enabled": true,
+      "type": "output",
+      "command": "docker ps -a --format '{{.Names}}: {{.Status}}' | grep -v 'Up'",
+      "alert_message": "[ALERTA] ¡Alerta SRE! Hay contenedores caídos o reiniciándose:\n{value}"
+    },
+    "ram_usage": {
+      "enabled": true,
+      "type": "threshold",
+      "command": "free | grep Mem | awk '{print int($3/$2 * 100)}'",
+      "threshold": 90,
+      "alert_message": "[ALERTA] ¡Atención! El uso de la memoria RAM está al {value}%"
+    }
+  }
+}
