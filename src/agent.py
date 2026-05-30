@@ -28,7 +28,7 @@ def ask_agent(user_prompt: str) -> dict:
             "4. Para ver espacio en disco usa obligatoriamente 'df -h'. Para memoria o CPU usa 'free -m' o 'top -b -n 1 | head -n 20'. Para listar contenedores usa 'docker ps -a'."
         )
 
-    # SYSTEM PROMPT BLINDADO Y APLANADO (SIN RETORNO DE JSONS ANIDADOS COMO STRINGS)
+    # SYSTEM PROMPT BLINDADO Y APLANADO 
     system_instructions = (
         f"[PERFIL Y ROL]\n"
         f"Eres un agente SRE/DevOps experto, riguroso y automatizado que gestiona sistemas Linux y Windows.\n\n"
@@ -61,7 +61,7 @@ def ask_agent(user_prompt: str) -> dict:
 
     # --- Bloque de conexiones e infraestructura de APIs ---
     if config.is_cloud:
-        url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
+        url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {config.groq_key}",
             "Content-Type": "application/json"

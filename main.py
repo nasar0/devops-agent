@@ -60,20 +60,18 @@ def procesar_peticion(user_input: str):
         
         ai_decision = ask_agent(prompt_actual)
         tool_name = ai_decision.get("tool_name")
-        argument = ai_decision.get("argument")
         
         if not tool_name:
             print(f"\n[ERROR] La IA devolvió una estructura sin un nombre de herramienta válido.")
             return
             
-        es_peligroso = False
-        comando_a_ejecutar = argument
-
-        # Todo lo procesamos como herramienta_CLI o comandos crudos mapeados a CLI
-        if tool_name == "restart_container":
-            es_peligroso = True
-            comando_a_ejecutar = f"docker restart {argument}"
-        else:
+        # EXTRAEMOS LAS CLAVES DEL NUEVO FORMATO PLANO O PARAMETRIZAMOS CON CAUTELA
+        comando_a_ejecutar = ai_decision.get("comando")
+        es_peligroso = ai_decision.get("peligro", False)
+        
+        # Mapeo y soporte de retrocompatibilidad por si la IA usa claves anidadas viejas o 'argument'
+        if not comando_a_ejecutar and "argument" in ai_decision:
+            argument = ai_decision.get("argument")
             try:
                 datos_cli = json.loads(argument) if isinstance(argument, str) and argument.strip().startswith("{") else argument
                 if isinstance(datos_cli, dict):
@@ -85,6 +83,17 @@ def procesar_peticion(user_input: str):
             except Exception:
                 comando_a_ejecutar = argument
                 es_peligroso = True
+
+        # Forzado para la herramienta legacy de contenedores
+        if tool_name == "restart_container" and comando_a_ejecutar:
+            es_peligroso = True
+            if not str(comando_a_ejecutar).startswith("docker restart"):
+                comando_a_ejecutar = f"docker restart {comando_a_ejecutar}"
+
+        # Control preventivo si el comando no se ha podido inicializar
+        if not comando_a_ejecutar:
+            print(f"\n[ERROR] No se pudo extraer un comando CLI válido de la respuesta del Agente.")
+            return
 
         comando_fallido = comando_a_ejecutar
         print(f"  └── [EJECUCIÓN] [herramienta_CLI] -> `{comando_a_ejecutar}` [Token: {TASK_TOKEN}]" + " " * 10)
