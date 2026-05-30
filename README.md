@@ -1,134 +1,238 @@
-# Autonomous DevOps & SRE AI Agent
+# Agente DevOps/SRE Autonomo (ChatOps)
 
-Un agente autónomo de Ingeniería de Confiabilidad de Sitios (SRE) y operaciones de desarrollo (DevOps). El sistema está diseñado para ejecutarse de forma híbrida en entornos Windows (PowerShell) y Linux (Bash), interactuando nativamente con el sistema operativo bajo un control de seguridad criptográfica por sesión, memoria contextual integrada y capacidades de autorreparación (Self-Healing) en tiempo real mediante un motor CLI unificado.
+Este proyecto implementa un agente autonomo de DevOps y Site Reliability Engineering (SRE) diseñado para interactuar mediante ChatOps a traves de un bot de Telegram. El agente procesa peticiones en lenguaje natural para administrar sistemas locales o remotos, utilizando modelos de lenguaje en la nube (mediante la API de Groq con el modelo llama-3.3-70b-versatile) o locales (mediante Ollama con el modelo llama3).
 
----
-
-## Características Principales
-
-* **Cerebro Híbrido:** Capacidad de conmutación entre la nube de alto rendimiento con Groq Cloud (Llama 3.3) y la ejecución local privada mediante Ollama (Llama 3) de forma transparente.
-* **Memoria Contextual de Sesión:** Mantiene un historial cíclico vivo de las últimas interacciones de la conversación. Esto permite al agente comprender pronombres, procesar órdenes de seguimiento (ej. *"Modifica su contenido"*) y mantener el hilo conceptual sin pérdida de información entre comandos.
-* **Arquitectura CLI Pura y Abstracción:** Autodetecta el sistema operativo anfitrión (Windows o Linux) y traduce las solicitudes directamente en comandos nativos del sistema (como `df -h`, `free -m` o `docker ps -a`), evitando capas intermedias redundantes y adaptando la sintaxis en tiempo real según la terminal destino.
-* **Freno de Seguridad con Tokens Únicos:** Clasifica de forma dinámica el nivel de riesgo de cada comando antes de su ejecución. Si detecta acciones de escritura o modificación crítica (crear, borrar, editar archivos o reiniciar servicios), congela el hilo y solicita una aprobación explícita vía Telegram. Utiliza un sistema de Tokens Aleatorios Dinámicos (UUID) por operación para garantizar la integridad de las sesiones.
-* **Bucle de Autorreparación (5 Intentos):** Si un comando falla en la terminal, el agente captura el `stderr` y el código de salida nativo, reformula la estrategia recursivamente y realiza hasta 5 intentos de depuración autónoma (explorando directorios si es necesario) antes de reportar el fallo definitivo.
-* **Consola Interactiva REPL Optimizada:** Interfaz continua por consola configurada sin buffer de salida de Python (`PYTHONUNBUFFERED=1`), lo que asegura un prompt reactivo e instantáneo tanto en ejecución nativa como dentro de contenedores.
+El sistema detecta de forma automatica el sistema operativo del anfitrion (Windows o Linux) y adapta la sintaxis de los comandos (PowerShell o Bash). Cuenta con un sistema de autorreparacion (Self-Healing) capaz de interpretar los errores de la terminal y ajustar sus instrucciones de manera iterativa, e implementa un mecanismo de aprobacion humana (Human-in-the-Loop) para evitar la ejecucion accidental de comandos peligrosos.
 
 ---
 
-## Control de Ejecución Único
+## Caracteristicas Principales
 
-El agente traduce las peticiones en lenguaje natural del usuario directamente a comandos del sistema operativo utilizando un único intérprete global evaluado:
-
-| Interfaz / Herramienta | Tipo de Acción | Descripción |
-| :--- | :--- | :--- |
-| `herramienta_CLI` | Dinámica (Evaluación Estricta) | Intérprete central para cualquier comando nativo del sistema operativo. Determina automáticamente la carga útil, evalúa el flag de peligro (`true/false`) y gestiona el ciclo de vida de la tarea. |
-
----
-
-## Requisitos e Instalación
-
-### 1. Clonar el repositorio y acceder
-```bash
-git clone [https://github.com/nasar0/devops-agent.git](https://github.com/nasar0/devops-agent.git)
-cd devops-agent
-
-```
-
-### 2. Configuración de Variables de Entorno (`.env`)
-
-Crea un archivo `.env` en la raíz del proyecto para la configuración inicial. Asegúrate de introducir los valores limpios, sin comillas ni espacios residuales:
-
-```env
-IA_MODE=cloud
-TELEGRAM_TOKEN=tu_api_TELEGRAM_TOKEN
-CHAT_ID=tu_CHAT_ID
-GROQ_KEY=tu_api_key_de_groq
-
-```
+* **Control por ChatOps (Telegram)**: Permite administrar servidores de manera remota enviando ordenes en lenguaje natural.
+* **Compatibilidad Multiplataforma**:
+  * **Windows**: Ejecucion nativa en PowerShell. Utiliza codificacion cp1252 para prevenir errores con caracteres especiales (tildes, eñes) en la comunicacion con los subprocesos de Python.
+  * **Linux/Unix**: Ejecucion nativa en Bash.
+* **Soporte de Modelos Local y Nube**:
+  * **Modo LOCAL**: Integracion con Ollama (http://localhost:11434) usando el modelo llama3 para ejecuciones privadas y offline.
+  * **Modo CLOUD**: Integracion con Groq Cloud usando llama-3.3-70b-versatile para respuestas de baja latencia y alta precision.
+* **Bucle de Autorreparacion (Self-Healing)**: Si un comando falla, el agente analiza la salida de error (stderr), reestructura el prompt e intenta enfoques alternativos de forma automatica (limite de 5 intentos).
+* **Control de Seguridad (Human-in-the-Loop)**:
+  * Clasificacion automatica de comandos en "seguros" (lectura/diagnostico) e "inseguros/peligrosos" (escritura/borrado/modificacion).
+  * Los comandos clasificados como peligrosos se pausan y requieren autorizacion explicita del administrador en Telegram mediante botones interactivos (inline keyboard) respaldados por un identificador unico de sesion (TASK_TOKEN).
+* **Monitorizacion de Metricas del Sistema**: Componente StatusChecker que lee configuraciones en JSON para auditar el estado del hardware y servicios docker, generando alertas inmediatas.
 
 ---
 
-## Modos de Despliegue
+## Estructura del Proyecto
 
-### Opción A: Despliegue Aislado con Docker (Recomendado)
-
-Para evitar dependencias globales de Python o problemas de entorno, puedes ejecutar el agente dentro de un contenedor aislado que se comunica de forma segura con la máquina anfitriona mediante montajes específicos.
-
-1. **Construir la imagen local:**
-
-```bash
-docker build --network=host -t devops-agent .
-
-```
-
-2. **Lanzar el contenedor en segundo plano:**
-
-```bash
-docker run -d --name mi-agente-telegram --user root --restart always -v /var/run/docker.sock:/var/run/docker.sock -v /home:/home -e IA_MODE="cloud" -e TELEGRAM_TOKEN="TU_TOKEN" -e CHAT_ID="TU_CHAT_ID" -e GROQ_KEY="TU_GROQ_KEY" devops-agent
-
-```
-
-*(Nota: El flag `--user root` asegura el acceso correcto al socket de Docker y el flag `-v /home:/home` permite que los cambios de archivos impacten directamente en el host real).*
-
-3. **Inspeccionar el estado y los logs en tiempo real:**
-
-```bash
-docker logs -f mi-agente-telegram
-
-```
-
-### Opción B: Ejecución Nativa (Entorno Virtual)
-
-1. **Crear e inicializar el entorno virtual:**
-
-```bash
-# Crear entorno
-python -m venv venv
-
-# Activar en Windows (PowerShell)
-.\venv\Scripts\activate
-
-# Activar en Linux (Bash)
-source venv/bin/activate
-
-```
-
-2. **Instalar dependencias y arrancar:**
-
-```bash
-pip install -r requirements.txt
-python main.py
-
-```
-
----
-
-## Arquitectura del Proyecto
+El codigo fuente esta organizado de la siguiente manera:
 
 ```text
 devops-agent/
-│
 ├── config/
-│   └── settings.py          # Gestión, tipado estricto y validación Pydantic del .env
-│
+│   ├── metrics_config.json     # Umbrales y comandos de monitoreo SRE
+│   └── settings.py             # Carga y validacion de variables .env con Pydantic
 ├── src/
-│   ├── agent.py             # Generación del System Prompt modular CLI y conectores de IA (Groq/Ollama)
-│   ├── chatops.py           # Pasarela de Webhooks, polling y validación de tokens únicos con Telegram
-│   └── tools/               # Módulos de aislamiento de ejecución del agente
-│       └── global_tools.py  # Wrapper principal para la ejecución de comandos CLI nativos
-│
-├── env.example              # Plantilla de referencia para variables de entorno
-├── Dockerfile               # Configuración de empaquetado optimizado con cliente Docker nativo
-└── main.py                  # Loop REPL principal, gestor de memoria, orquestador CLI e hilo de autorreparación
-
+│   ├── tools/
+│   │   ├── global_tools.py     # Ejecutor CLI nativo con subprocess y codificaciones seguras
+│   │   └── status_checker.py   # Auditor periodico de metricas de hardware y Docker
+│   ├── agent.py                # Interfaz con LLMs (Groq/Ollama) y diseño de prompts
+│   ├── chatops.py              # Integracion con la API de Telegram y logica de aprobaciones
+│   └── __init__.py
+├── test/
+│   └── test.txt                # Archivo para pruebas locales
+├── .dockerignore
+├── .env                        # Archivo de configuracion local (creado en la instalacion)
+├── .gitignore
+├── Dockerfile                  # Configuracion para la contenedorizacion del agente
+├── docker-compose.yml          # Orquestacion de Docker con mapeo de socket
+├── devops-agent.service        # Plantilla de servicio Systemd para Linux
+├── env.example                 # Plantilla de referencia para variables de entorno
+├── install.sh                  # Script de instalacion automatizada en Linux
+├── main.py                     # Punto de entrada principal y bucle de eventos ChatOps
+└── requirements.txt            # Dependencias del proyecto (Pydantic, python-dotenv, requests)
 ```
 
 ---
 
-## Aviso Legal (Disclaimer)
+## Requisitos Previos
 
-Este software ha sido desarrollado exclusivamente con fines educativos, de investigación y de automatización controlada de operaciones de desarrollo.
+Antes de configurar y arrancar la aplicacion, es necesario disponer de:
 
-* **Responsabilidad:** El autor no se hace responsable de daños, alteraciones de datos, borrados accidentales o interrupciones de servicio causadas por los comandos ejecutados o sugeridos de forma autónoma por la Inteligencia Artificial.
-* **Entorno Seguro:** Se recomienda encarecidamente ejecutar este agente dentro de entornos controlados (Staging), máquinas virtuales o contenedores Docker aislados que tengan los permisos estrictamente limitados en el sistema anfitrión.
- 
+1. **Bot de Telegram**:
+   * Creado a traves del bot oficial de Telegram @BotFather, obteniendo el token de acceso (TELEGRAM_TOKEN).
+   * Identificador de chat del administrador (CHAT_ID), obtenible mediante el bot @userinfobot. Solo los mensajes procedentes de este ID seran procesados por el agente.
+
+2. **Modelo de Lenguaje (LLM)**:
+   * **Para Modo Nube (CLOUD)**: Una clave de API valida de Groq Cloud (GROQ_KEY).
+   * **Para Modo Local (LOCAL)**: Una instalacion activa de Ollama con el modelo llama3 ya descargado (ejecutando "ollama run llama3").
+
+---
+
+## Configuracion (.env)
+
+El agente requiere de un archivo .env en la raiz del proyecto para inicializar sus variables de entorno. Puede crearse copiando el archivo env.example:
+
+```env
+IA_MODE=LOCAL
+GROQ_KEY=tu_clave_api_groq
+TELEGRAM_TOKEN=tu_token_de_telegram_bot
+CHAT_ID=tu_id_de_usuario_telegram
+```
+
+La carga del archivo se realiza a traves de config/settings.py, el cual utiliza Pydantic para validar que todas las variables requeridas esten presentes y tengan un formato correcto. Si falta alguna variable obligatoria, el agente abortara el arranque y mostrara un reporte detallado del fallo de validacion.
+
+---
+
+## Metodos de Despliegue y Ejecucion
+
+### Metodo 1: Instalacion como Servicio Systemd en Linux (Recomendado para Produccion)
+
+Si se desea ejecutar el agente de forma continua en segundo plano dentro de un servidor Linux, se puede utilizar el script de instalacion automatica:
+
+1. **Dar permisos de ejecucion y ejecutar el instalador**:
+   ```bash
+   sudo chmod +x install.sh
+   sudo ./install.sh
+   ```
+   Este script creara el entorno virtual de Python (venv), instalara todas las dependencias requeridas (con control de compatibilidad para Python 3.13), generara una plantilla .env si no existe, y registrara el servicio devops-agent.service en Systemd.
+
+2. **Administracion del Servicio**:
+   * **Ver estado**: `sudo systemctl status devops-agent`
+   * **Iniciar**: `sudo systemctl start devops-agent`
+   * **Detener**: `sudo systemctl stop devops-agent`
+   * **Reiniciar**: `sudo systemctl restart devops-agent`
+
+3. **Lectura de Logs en Tiempo Real**:
+   ```bash
+   sudo journalctl -u devops-agent -f
+   ```
+
+---
+
+### Metodo 2: Ejecucion en Contenedores con Docker Compose
+
+El agente puede empaquetarse y ejecutarse en un entorno aislado pero con privilegios para monitorizar y controlar los demas contenedores de la maquina anfitriona.
+
+1. **Configurar el archivo .env** con las credenciales necesarias.
+2. **Construir y levantar el contenedor**:
+   ```bash
+   docker-compose up -d --build
+   ```
+   *Nota: El archivo docker-compose.yml mapea el socket de Docker del host (/var/run/docker.sock) al contenedor, permitiendo al agente ejecutar comandos de Docker como "docker restart" o "docker ps" directamente sobre el motor del anfitrion.*
+3. **Ver logs de la ejecucion**:
+   ```bash
+   docker-compose logs -f devops-agent
+   ```
+
+---
+
+### Metodo 3: Ejecucion Manual en Local (Desarrollo)
+
+Ideal para realizar pruebas en entornos Windows o distribuciones de desarrollo de Linux.
+
+1. **Crear y activar el entorno virtual de Python**:
+   * **En Windows (PowerShell)**:
+     ```powershell
+     python -m venv venv
+     .\venv\Scripts\Activate.ps1
+     ```
+   * **En Linux/macOS**:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+
+2. **Instalar dependencias**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Iniciar la aplicacion**:
+   ```bash
+   python main.py
+   ```
+
+---
+
+## Flujo de Trabajo y Logica Interna
+
+### Diagrama de Ejecucion del Agente
+
+El siguiente diagrama detalla la logica de toma de decisiones y ejecucion del agente desde que recibe un mensaje hasta que devuelve la respuesta o inicia el bucle de autorreparacion:
+
+```mermaid
+graph TD
+    A[Mensaje recibido en Telegram] --> B[Generar TASK_TOKEN unico]
+    B --> C[Construir prompt con historial y meta actual]
+    C --> D[Consultar LLM Groq / Ollama]
+    D --> E{¿Formato JSON valido?}
+    E -- No --> D
+    E -- Si --> F{¿Es comando peligroso?}
+    F -- Si --> G[Enviar botones de confirmacion a Telegram]
+    G --> H{¿Usuario aprueba?}
+    H -- No --> I[Abortar y notificar bloqueo]
+    H -- Si --> J[Ejecutar comando CLI en subproceso]
+    F -- No --> J
+    J --> K{¿Comando exitoso?}
+    K -- Si --> L[Enviar salida tecnica a Telegram]
+    K -- No --> M{¿Intentos menores a 5?}
+    M -- Si --> N[Agregar error a contexto del prompt]
+    N --> C
+    M -- No --> O[Enviar notificacion de fallo critico]
+```
+
+### Mecanismos de Seguridad y Clasificacion de Comandos
+
+El agente analiza semanticamente cada instruccion que propone ejecutar y la clasifica en base al riesgo:
+
+1. **Comandos Pasivos (Seguros)**: Comandos de lectura o diagnostico (por ejemplo: `df -h`, `free -m`, `docker ps`, `ls`). Tienen la propiedad `"peligro": false` y se ejecutan inmediatamente.
+2. **Comandos Activos (Peligrosos)**: Comandos que modifican el sistema, crean archivos, detienen servicios o eliminan directorios (por ejemplo: `rm -rf`, `docker restart`, `mkdir`, `touch`). Tienen la propiedad `"peligro": true`.
+   * Al detectarse, se suspende la ejecucion de la tarea.
+   * Se envia un mensaje interactivo de confirmacion a Telegram con los botones "Confirmar (SI)" y "Cancelar (NO)".
+   * El sistema genera un TASK_TOKEN temporal unico que se inyecta en los callbacks de los botones. Esto evita colisiones de comandos antiguos y asegura que solo se confirme el comando que esta en espera activa.
+   * La aplicacion entra en espera (polling controlado) hasta que se reciba la aprobacion o cancelacion del administrador.
+
+### Logica de Autorreparacion (Self-Healing)
+
+Cuando el comando ejecutado retorna un error de salida (por ejemplo, rutas incorrectas, parametros invalidos, ejecutables no encontrados), el sistema entra en un bucle recursivo (maximo 5 intentos):
+
+* Incrementa el contador de intentos.
+* Recopila la salida de error (`stderr`) del subproceso.
+* Inyecta en el prompt del LLM una alerta de autorreparacion con el comando fallido, el error especifico devuelto por la consola y directrices de resolucion (como prohibir rutas asumidas incorrectas o forzar tecnicas de exploracion con `pwd` y `ls`).
+* El LLM procesa el error y propone un nuevo comando estructurado en JSON.
+
+---
+
+## Monitorizacion de Metricas del Sistema (SRE)
+
+El modulo `src/tools/status_checker.py` esta diseñado para auditar el estado del servidor leyendo de forma dinamica la configuracion definida en `config/metrics_config.json`.
+
+### Estructura de Configuracion de Metricas
+
+```json
+{
+  "check_interval_seconds": 60,
+  "metrics": {
+    "disk_usage": {
+      "enabled": true,
+      "type": "threshold",
+      "command": "df /home --output=pcent | tail -n 1 | tr -d ' %'",
+      "threshold": 95,
+      "alert_message": "[ALERTA] ¡Alerta SRE! El uso de disco en /home ha superado el {threshold}% (Actual: {value}%)"
+    },
+    "docker_containers": {
+      "enabled": true,
+      "type": "output",
+      "command": "docker ps -a --format '{{.Names}}: {{.Status}}' | grep -v 'Up'",
+      "alert_message": "[ALERTA] ¡Alerta SRE! Hay contenedores caídos o reiniciándose:\n{value}"
+    }
+  }
+}
+```
+
+El monitor admite dos tipos de comprobaciones:
+* **Umbral (threshold)**: Ejecuta comandos que retornan un valor numerico y genera una alerta si este valor supera el parametro de umbral configurado.
+* **Salida de texto (output)**: Ejecuta comandos de diagnostico. Si la consola devuelve cualquier tipo de texto (como la lista de contenedores caídos), se interpreta como anomalia y se reporta inmediatamente.
+
+Este componente SRE puede ser orquestado en una tarea periodica independiente o integrado en el flujo principal del bot para mantener informado al administrador del estado del hardware en tiempo real.
