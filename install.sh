@@ -32,13 +32,18 @@ if [ ! -f "$APP_DIR/metrics_config.json" ] && [ -f "$APP_DIR/metrics_config.exam
   cp "$APP_DIR/metrics_config.example.json" "$APP_DIR/metrics_config.json"
 fi
 
-# 4. Crear el entorno virtual de Python e instalar dependencias si no existe
+# 4. Crear el entorno virtual de Python e instalar dependencias si no existe 
 if [ ! -d "$APP_DIR/venv" ]; then
   echo "[INFO] Creando entorno virtual de Python (venv)..."
   python3 -m venv "$APP_DIR/venv"
 fi
 
+echo "[INFO] Actualizando herramientas esenciales de pip..."
+"$APP_DIR/venv/bin/pip" install --upgrade pip setuptools wheel
+
 echo "[INFO] Instalando dependencias de Python..."
+# Forzamos compatibilidad de Rust/PyO3 para entornos modernos como Python 3.13
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 "$APP_DIR/venv/bin/pip" install --no-cache-dir -r "$APP_DIR/requirements.txt"
 
 # 5. Generar dinámicamente el archivo del servicio de Systemd
