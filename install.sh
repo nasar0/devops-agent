@@ -32,17 +32,20 @@ if [ ! -f "$APP_DIR/metrics_config.json" ] && [ -f "$APP_DIR/metrics_config.exam
   cp "$APP_DIR/metrics_config.example.json" "$APP_DIR/metrics_config.json"
 fi
 
-# 4. Crear el entorno virtual de Python e instalar dependencias si no existe 
-if [ ! -d "$APP_DIR/venv" ]; then
-  echo "[INFO] Creando entorno virtual de Python (venv)..."
-  python3 -m venv "$APP_DIR/venv"
+# 4. Crear o limpiar el entorno virtual de Python
+if [ -d "$APP_DIR/venv" ]; then
+  echo "[INFO] Eliminando entorno virtual anterior para evitar conflictos de compilación..."
+  rm -rf "$APP_DIR/venv"
 fi
+
+echo "[INFO] Creando nuevo entorno virtual de Python (venv)..."
+python3 -m venv "$APP_DIR/venv"
 
 echo "[INFO] Actualizando herramientas esenciales de pip..."
 "$APP_DIR/venv/bin/pip" install --upgrade pip setuptools wheel
 
-echo "[INFO] Instalando dependencias de Python..."
-# Forzamos compatibilidad de Rust/PyO3 para entornos modernos como Python 3.13
+echo "[INFO] Instalando dependencias de Python (con soporte para Python 3.13+)..."
+# Forzamos la compatibilidad hacia delante de la ABI de Rust (PyO3) para evitar el fallo de pydantic-core
 export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 "$APP_DIR/venv/bin/pip" install --no-cache-dir -r "$APP_DIR/requirements.txt"
 
@@ -76,11 +79,8 @@ echo "[INFO] Registrando y habilitando el servicio en Systemd..."
 systemctl daemon-reload
 systemctl enable devops-agent.service
 
-# ==========================================
-# 🚀 ¡EL CAMBIO AQUÍ! ARRANCAR INMEDIATAMENTE
-# ==========================================
-echo "[INFO] Arrancando el proceso nativo automáticamente..."
-systemctl start devops-agent.service
+echo "[INFO] Reiniciando el proceso nativo automáticamente para aplicar los cambios..."
+systemctl restart devops-agent.service
 
 echo "===================================================="
 echo "✅ ¡TODO COMPLETADO Y ARRANCADO CON ÉXITO!"
