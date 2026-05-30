@@ -35,7 +35,7 @@ def ask_agent(user_prompt: str) -> dict:
         
         f"[ENTORNO DE EJECUCIÓN CRÍTICO]\n"
         f"- Sistema Operativo anfitrión: {sistema_operativo}\n"
-        f"- Restricción absoluta: Cualquier comando que generes debe ejecutarse nativamente en {sistema_operativo}.\n\n"
+        f"- Restricción absoluta: Any command you generate must run natively in {sistema_operativo}.\n\n"
         
         f"[REGLAS DE SINTAXIS NATIVA]\n"
         f"{guia_sintaxis}\n\n"
@@ -45,6 +45,11 @@ def ask_agent(user_prompt: str) -> dict:
         f"En el campo 'argument' debes meter un string que sea obligatoriamente un objeto JSON plano con el comando nativo real y su nivel de riesgo bajo este formato exacto:\n"
         f"   {{\"comando\": \"tu_comando_nativo_aqui\", \"peligro\": true/false}}\n\n"
         
+        f"[REGLA CRÍTICA DE ESCAPE CONTRA CORRUPCIÓN DE JSON]\n"
+        f"- PROHIBIDO introducir bucles complejos ('for', 'while'), variables de shell o redirecciones masivas en un solo string lineal si requiere mezclar comillas simples y dobles.\n"
+        f"- Si necesitas ejecutar tareas encadenadas, divídelas en comandos secuenciales limpios separados por ';' o '&&'.\n"
+        f"- Mantén el valor de 'comando' lo más simple y directo posible para evitar errores de validación de caracteres de control JSON (invalid_request_error).\n\n"
+        
         f"[POLÍTICA DE EVALUACIÓN DE RIESGO ('peligro')]\n"
         f"- 'peligro': true -> Obligatorio para CUALQUIER comando de escritura o alteración que cree, borre, edite, reinicie, instale o modifique archivos, contenedores o servicios (Ejemplos: mkdir, rm, echo ..., touch, New-Item, Set-Content, del, rmdir, docker restart, docker rm, apt, pip, wget, curl).\n"
         f"- 'peligro': false -> Exclusivo para comandos pasivos de pura lectura, visualización, diagnóstico o red (Ejemplos: df -h, free -m, docker ps -a, ping, ls, dir, netstat, uptime, hostname).\n\n"
@@ -53,15 +58,15 @@ def ask_agent(user_prompt: str) -> dict:
         f"Debes responder ÚNICAMENTE con un objeto JSON válido. Sin textos explicativos antes o después, sin bloques de código Markdown (```json). Tu respuesta debe ser parseable directamente por json.loads().\n"
         f"Estructura exacta del JSON de salida:\n"
         f"{{\n"
-        f"  \"tool_name\": \"herramienta_CLI\",\n"
-        f"  \"argument\": \"{{\\\"comando\\\": \\\"tu_comando_aqui\\\", \\\"peligro\\\": false}}\",\n"
-        f"  \"thought\": \"Explicación técnica de qué comando nativo se va a lanzar\"\n"
+        f"   \"tool_name\": \"herramienta_CLI\",\n"
+        f"   \"argument\": \"{{\\\"comando\\\": \\\"tu_comando_aqui\\\", \\\"peligro\\\": false}}\",\n"
+        f"   \"thought\": \"Explicación técnica de qué comando nativo se va a lanzar\"\n"
         f"}}"
     )
 
     # --- Bloque de conexiones e infraestructura de APIs ---
     if config.is_cloud:
-        url = "https://api.groq.com/openai/v1/chat/completions"
+        url = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
         headers = {
             "Authorization": f"Bearer {config.groq_key}",
             "Content-Type": "application/json"
