@@ -5,7 +5,7 @@ from config.settings import config
 
 """
     Orquesta la petición del usuario inyectando dinámicamente el Sistema Operativo actual
-    con un System Prompt blindado y ultra-potente orientado a CLI puro.
+    con un System Prompt blindado, aplanado y ultra-potente orientado a CLI puro.
 """
 def ask_agent(user_prompt: str) -> dict:
 
@@ -28,7 +28,7 @@ def ask_agent(user_prompt: str) -> dict:
             "4. Para ver espacio en disco usa obligatoriamente 'df -h'. Para memoria o CPU usa 'free -m' o 'top -b -n 1 | head -n 20'. Para listar contenedores usa 'docker ps -a'."
         )
 
-    # SYSTEM PROMPT BLINDADO ORIENTADO A CLI PURO (SIN FUNCIONES VIEJAS)
+    # SYSTEM PROMPT BLINDADO Y APLANADO (SIN RETORNO DE JSONS ANIDADOS COMO STRINGS)
     system_instructions = (
         f"[PERFIL Y ROL]\n"
         f"Eres un agente SRE/DevOps experto, riguroso y automatizado que gestiona sistemas Linux y Windows.\n\n"
@@ -41,26 +41,21 @@ def ask_agent(user_prompt: str) -> dict:
         f"{guia_sintaxis}\n\n"
         
         f"[HERRAMIENTAS DISPONIBLES]\n"
-        f"- 'herramienta_CLI': Es la ÚNICA herramienta activa en el sistema. Debes usarla para CUALQUIER petición del usuario (diagnósticos, discos, contenedores, manipulación de archivos, etc.).\n"
-        f"En el campo 'argument' debes meter un string que sea obligatoriamente un objeto JSON plano con el comando nativo real y su nivel de riesgo bajo este formato exacto:\n"
-        f"   {{\"comando\": \"tu_comando_nativo_aqui\", \"peligro\": true/false}}\n\n"
-        
-        f"[REGLA CRÍTICA DE ESCAPE CONTRA CORRUPCIÓN DE JSON]\n"
-        f"- PROHIBIDO introducir bucles complejos ('for', 'while'), variables de shell o redirecciones masivas en un solo string lineal si requiere mezclar comillas simples y dobles.\n"
-        f"- Si necesitas ejecutar tareas encadenadas, divídelas en comandos secuenciales limpios separados por ';' o '&&'.\n"
-        f"- Mantén el valor de 'comando' lo más simple y directo posible para evitar errores de validación de caracteres de control JSON (invalid_request_error).\n\n"
+        f"- 'herramienta_CLI': Es la ÚNICA herramienta activa en el sistema. Debes usarla para cualquier petición.\n\n"
         
         f"[POLÍTICA DE EVALUACIÓN DE RIESGO ('peligro')]\n"
-        f"- 'peligro': true -> Obligatorio para CUALQUIER comando de escritura o alteración que cree, borre, edite, reinicie, instale o modifique archivos, contenedores o servicios (Ejemplos: mkdir, rm, echo ..., touch, New-Item, Set-Content, del, rmdir, docker restart, docker rm, apt, pip, wget, curl).\n"
-        f"- 'peligro': false -> Exclusivo para comandos pasivos de pura lectura, visualización, diagnóstico o red (Ejemplos: df -h, free -m, docker ps -a, ping, ls, dir, netstat, uptime, hostname).\n\n"
+        f"- 'peligro': true -> Para comandos de escritura, alteración, borrado o modificación (mkdir, rm, touch, docker restart, etc.).\n"
+        f"- 'peligro': false -> Para comandos pasivos de lectura o diagnóstico (df -h, free -m, docker ps -a, ls).\n\n"
         
-        f"[REGLA CRÍTICA DE RESPUESTA - FORMATO JSON ESTRICTO]\n"
-        f"Debes responder ÚNICAMENTE con un objeto JSON válido. Sin textos explicativos antes o después, sin bloques de código Markdown (```json). Tu respuesta debe ser parseable directamente por json.loads().\n"
+        f"[REGLA CRÍTICA DE RESPUESTA - FORMATO JSON PLANO ESTRICTO]\n"
+        f"Debes responder ÚNICAMENTE con un objeto JSON plano y válido. Sin bloques Markdown (```json). Sin textos explicativos. Tu respuesta debe ser parseable directamente por json.loads().\n"
+        f"PROHIBIDO meter objetos JSON serializados como strings en los campos. Todo debe ser de primer nivel.\n\n"
         f"Estructura exacta del JSON de salida:\n"
         f"{{\n"
         f"   \"tool_name\": \"herramienta_CLI\",\n"
-        f"   \"argument\": \"{{\\\"comando\\\": \\\"tu_comando_aqui\\\", \\\"peligro\\\": false}}\",\n"
-        f"   \"thought\": \"Explicación técnica de qué comando nativo se va a lanzar\"\n"
+        f"   \"comando\": \"tu_comando_nativo_aquí\",\n"
+        f"   \"peligro\": false,\n"
+        f"   \"thought\": \"Explicación técnica del comando a lanzar\"\n"
         f"}}"
     )
 
@@ -90,7 +85,12 @@ def ask_agent(user_prompt: str) -> dict:
             print(f"❌ Error al conectar con Groq Cloud: {e}")
             if 'response_obj' in locals():
                 print(f"📄 Respuesta cruda de la API: {response_obj.text}")
-            return {"tool_name": "herramienta_CLI", "argument": '{"comando": "echo Error api", "peligro": false}', "thought": "Fallo en la API de la nube."}
+            return {
+                "tool_name": "herramienta_CLI", 
+                "comando": "echo Error api", 
+                "peligro": False, 
+                "thought": "Fallo en la API de la nube."
+            }
             
     else:
         url = "http://localhost:11434/api/chat"
@@ -111,4 +111,9 @@ def ask_agent(user_prompt: str) -> dict:
             return json.loads(content)
         except Exception as e:
             print(f"❌ Error al conectar con Ollama Local: {e}")
-            return {"tool_name": "herramienta_CLI", "argument": '{"comando": "echo Error ollama", "peligro": false}', "thought": "Ollama local no disponible."}
+            return {
+                "tool_name": "herramienta_CLI", 
+                "comando": "echo Error ollama", 
+                "peligro": False, 
+                "thought": "Ollama local no disponible."
+            }
